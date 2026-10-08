@@ -56,6 +56,7 @@ public:
     using value_type = T;
     using reference = std::conditional_t<is_const, T const&, T&>;
     using pointer = std::conditional_t<is_const, T const*, T*>;
+    using iterator_concept = std::random_access_iterator_tag;
     using iterator_category = std::random_access_iterator_tag;
     using difference_type = ptrdiff_t;
 };
@@ -95,7 +96,9 @@ Declaring any constructor suppresses the compiler-generated default one, so also
 
 ## Iterator class members
 
-The iterator must be copy-constructible, copy-assignable, destructible, and incrementable. Add these public members to `dummy_array_iterator`. Post-increment delegates to pre-increment to avoid code duplication:
+Our random-access iterator must be default-constructible, copy-constructible, copy-assignable, destructible, swappable, and equality-comparable. It also needs prefix and postfix increment, dereference, and, for convenient member access, an arrow operator. The type aliases above support iterator traits and algorithm dispatch; C++20 concepts check the operations and their semantics as well, so aliases alone do not establish conformance.
+
+Add these public members to `dummy_array_iterator`. Post-increment delegates to pre-increment to avoid code duplication. Include `<memory>` for `std::addressof` and `<stdexcept>` for the bounds checks:
 
 ```cpp
 public:
@@ -106,7 +109,7 @@ public:
 
     self_type& operator++()
     {
-        if (index >= Size)
+        if (ptr == nullptr || index >= Size)
             throw std::out_of_range("Iterator can not be incremented "
                                     "past the end of its range.");
         ++index;
@@ -119,9 +122,35 @@ public:
         ++(*this);
         return tmp;
     }
+
+    reference operator*() const
+    {
+        if (ptr == nullptr || index >= Size)
+            throw std::out_of_range("Iterator dereference out of range.");
+        return ptr[index];
+    }
+
+    pointer operator->() const
+    {
+        return std::addressof(**this);
+    }
+
+    bool operator==(self_type const& other) const
+    {
+        return compatible(other) && index == other.index;
+    }
+
+    bool operator!=(self_type const& other) const
+    {
+        return !(*this == other);
+    }
 ```
 
 Use `= default;` for the special members and `++(*this)` to advance the iterator object. Two adjacent string literals keep the exception message valid across source lines. Advancing the last element to the end position is allowed; incrementing an iterator already at the end throws.
+
+Dereference returns `ptr[index]` after rejecting a null pointer or an end position. The arrow operator reuses that check through `**this`; `std::addressof` obtains the real address even when the element type overloads `operator&`. Equality compares both the base pointer, through `compatible()` below, and the index. C++20 can rewrite `!=` from `==`, but the explicit definition shows the relationship.
+
+These pointer-and-index iterators can use `std::swap` without a custom swap function; include `<utility>` when calling it. The defaulted copy operations can also accept rvalues. This is still only part of a random-access iterator: decrement, offset arithmetic, iterator subtraction, subscripting, and ordering remain to be added before the class satisfies `std::random_access_iterator`. The `iterator_concept` and `iterator_category` tags describe the intended completed iterator.
 
 ## Checking iterator compatibility
 
