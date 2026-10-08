@@ -77,16 +77,21 @@ private:
 
 ## An explicit constructor
 
-The container builds an iterator by handing it those two pieces of state  the base pointer and a starting index. A single constructor stores them, marked `explicit` so a bare `pointer` can never silently convert into an iterator:
+The container builds an iterator by handing it those two pieces of state — the base pointer and a starting index. An explicit constructor stores them in the iterator's members:
 
 ```cpp
 public:
-    explicit dummy_array_iterator(pointer ptr, size_t const index)
+    explicit dummy_array_iterator(pointer ptr,
+                                  size_t const index)
         : ptr(ptr), index(index)
     { }
 ```
 
-`begin()` will call it as `{ data, 0 }` and `end()` as `{ data, Size }` — two iterators over the same array that differ only in their index. One thing to note: declaring any constructor suppresses the compiler-generated default one, so you will also want `dummy_array_iterator() = default;`, since the random-access-iterator concept requires an iterator be default-initializable.
+The constructor name must match the class name: this page uses `dummy_array_iterator`; a class named `data_array_iterator` would use that name instead. In the member initializer list, `ptr(ptr)` initializes the member `ptr` from the parameter `ptr`, and `index(index)` does the same for `index`. Writing `index_index(index)` would try to initialize a member named `index_index`, which this class does not have.
+
+With an `iterator` alias for the class, `begin()` can return `iterator{data, 0}` and `end()` can return `iterator{data, Size}` — two iterators over the same array that differ only in their index. These are direct-list-initializations, which can call an explicit constructor. A bare `return {data, 0};` uses copy-list-initialization and cannot select this explicit constructor. Both arguments are required regardless of `explicit`; a pointer alone is already insufficient.
+
+Declaring any constructor suppresses the compiler-generated default one, so also add `dummy_array_iterator() = default;`, as shown below, since a random-access iterator must be default-initializable. The `const` on the by-value `index` parameter prevents changing that parameter inside the constructor; it does not make the iterator's stored index const.
 
 ## Iterator class members
 
