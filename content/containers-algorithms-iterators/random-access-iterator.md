@@ -126,7 +126,7 @@ public:
 
 Use `= default;` for the special members and `++(*this)` to advance the iterator object. Two adjacent string literals keep the exception message valid across source lines. Advancing the last element to the end position is allowed; incrementing an iterator already at the end throws.
 
-These pointer-and-index iterators can use `std::swap` without a custom swap function; include `<utility>` when calling it. The defaulted copy operations can also accept rvalues. This is still only part of a random-access iterator: decrement, offset arithmetic, iterator subtraction, subscripting, and ordering remain to be added before the class satisfies `std::random_access_iterator`. The `iterator_concept` and `iterator_category` tags describe the intended completed iterator.
+These pointer-and-index iterators can use `std::swap` without a custom swap function; include `<utility>` when calling it. The defaulted copy operations can also accept rvalues. Decrement is added below; offset arithmetic, iterator subtraction, subscripting, and ordering still remain before the class satisfies `std::random_access_iterator`. The `iterator_concept` and `iterator_category` tags describe the intended completed iterator.
 
 ## Equality, inequality, and dereferencing
 
@@ -180,3 +180,32 @@ private:
 The return statement ends with a semicolon, not a colon. `other` is passed by const reference to avoid copying it, and the trailing `const` lets the check run without modifying this iterator.
 
 Because advancing changes `index` while leaving `ptr` fixed, iterators at different positions in the same array are compatible. Two iterators at index zero in different arrays are not. Compatibility therefore checks the underlying array, not equality of positions: an equality operator must also compare the indices. The ordering and difference operators can use this helper to check that both positions belong to the same array before comparing or subtracting their indices.
+
+## Bidirectional iterator members: decrement
+
+A bidirectional iterator adds backward movement to the forward-iterator operations. Add prefix and postfix decrement as public members of `dummy_array_iterator`, following the same pattern as increment:
+
+```cpp
+public:
+    self_type& operator--()
+    {
+        if (ptr == nullptr || index == 0 || index > Size)
+            throw std::out_of_range("Iterator can not be decremented "
+                                    "from this position.");
+        --index;
+        return *this;
+    }
+
+    self_type operator--(int)
+    {
+        self_type tmp = *this;
+        --(*this);
+        return tmp;
+    }
+```
+
+Prefix `--it` moves back one element and returns the updated iterator by reference. Postfix `it--` saves the original position, delegates to prefix through `--(*this)`, and returns the saved iterator by value. The unused `int` parameter distinguishes postfix from prefix.
+
+Decrementing `end()` is valid for a nonempty array: its index moves from `Size` to `Size - 1`, the last element. Decrementing `begin()` is invalid because there is no preceding element. Check `index == 0` before subtracting so the unsigned index cannot wrap around. The other checks reject a null iterator or an index already beyond the end, leaving the iterator unchanged when an exception is thrown.
+
+Together with the earlier members, these operations satisfy the C++20 `std::bidirectional_iterator` concept for both mutable and constant iterators. The iterator still needs the remaining random-access operations listed above. If you stop at bidirectional support, change both iterator tags to `std::bidirectional_iterator_tag` so algorithms are not told to expect random access.
