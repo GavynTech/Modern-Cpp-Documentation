@@ -122,6 +122,27 @@ public:
         ++(*this);
         return tmp;
     }
+```
+
+Use `= default;` for the special members and `++(*this)` to advance the iterator object. Two adjacent string literals keep the exception message valid across source lines. Advancing the last element to the end position is allowed; incrementing an iterator already at the end throws.
+
+These pointer-and-index iterators can use `std::swap` without a custom swap function; include `<utility>` when calling it. The defaulted copy operations can also accept rvalues. This is still only part of a random-access iterator: decrement, offset arithmetic, iterator subtraction, subscripting, and ordering remain to be added before the class satisfies `std::random_access_iterator`. The `iterator_concept` and `iterator_category` tags describe the intended completed iterator.
+
+## Equality, inequality, and dereferencing
+
+Two iterators compare equal when they refer to the same array and the same position. Add these public operators to the iterator class. The page uses `ptr` for the array's base pointer and `Size` for its fixed element count; `self_type` is the alias for `dummy_array_iterator`:
+
+```cpp
+public:
+    bool operator==(self_type const& other) const
+    {
+        return compatible(other) && index == other.index;
+    }
+
+    bool operator!=(self_type const& other) const
+    {
+        return !(*this == other);
+    }
 
     reference operator*() const
     {
@@ -134,23 +155,15 @@ public:
     {
         return std::addressof(**this);
     }
-
-    bool operator==(self_type const& other) const
-    {
-        return compatible(other) && index == other.index;
-    }
-
-    bool operator!=(self_type const& other) const
-    {
-        return !(*this == other);
-    }
 ```
 
-Use `= default;` for the special members and `++(*this)` to advance the iterator object. Two adjacent string literals keep the exception message valid across source lines. Advancing the last element to the end position is allowed; incrementing an iterator already at the end throws.
+`operator==` checks the array through `compatible()` below and then compares the indices. Equal indices in different arrays do not identify the same element. `operator!=` delegates to equality to keep both tests consistent. C++20 can also rewrite `!=` from `==`, so defining it explicitly is optional here.
 
-Dereference returns `ptr[index]` after rejecting a null pointer or an end position. The arrow operator reuses that check through `**this`; `std::addressof` obtains the real address even when the element type overloads `operator&`. Equality compares both the base pointer, through `compatible()` below, and the index. C++20 can rewrite `!=` from `==`, but the explicit definition shows the relationship.
+Dereferencing returns an **lvalue reference**, not an rvalue: `reference` is `T&` for a mutable iterator and `T const&` for a constant iterator. You can read the element with `auto value = *it;`, or modify it through a mutable iterator with `*it = value;`. The trailing `const` on `operator*()` prevents changing the iterator itself; it does not make the referenced element const. Even dereferencing a temporary iterator returns an lvalue referring to the stored element.
 
-These pointer-and-index iterators can use `std::swap` without a custom swap function; include `<utility>` when calling it. The defaulted copy operations can also accept rvalues. This is still only part of a random-access iterator: decrement, offset arithmetic, iterator subtraction, subscripting, and ordering remain to be added before the class satisfies `std::random_access_iterator`. The `iterator_concept` and `iterator_category` tags describe the intended completed iterator.
+The bounds check rejects a null iterator or an index at or beyond `Size` before accessing `ptr[index]`. An end iterator can be compared but cannot be dereferenced. These checks do not detect a dangling pointer after the underlying array's lifetime ends.
+
+The arrow operator returns a pointer to that same element and reuses the dereference check through `**this`. Use `std::addressof` from `<memory>` instead of `&(**this)` so an element type's overloaded `operator&` cannot change the result. For a class element, `it->member` then accesses the same member as `(*it).member`.
 
 ## Checking iterator compatibility
 
